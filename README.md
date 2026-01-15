@@ -155,15 +155,17 @@ guard.validate("...", metadata={"country": "AU"})
 ```python
 import openai
 
-guard = Guard().use(CrisisScreen())
+# Recommended: validate user input before LLM call
+guard = Guard().use(CrisisScreen(), on="messages")
 
-# Validates both input and output
 response = guard(
     openai.chat.completions.create,
     model="gpt-4",
     messages=[{"role": "user", "content": user_message}],
 )
 ```
+
+Without `on="messages"`, the validator runs on the LLM output. This still works—we detect crisis signals in any text—but input validation is the primary use case.
 
 ## On-Fail Actions
 
