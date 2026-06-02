@@ -228,7 +228,7 @@ guard = Guard().use(CrisisScreen(
 
 ## Accuracy
 
-See [nope.net/methodology](https://nope.net/methodology) for validation methodology, clinical grounding, and benchmark results.
+See [nope.net/methodology](https://nope.net/methodology) for validation methodology, risk-framework grounding, and benchmark results.
 
 ## What NOPE Is Not
 
