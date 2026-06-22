@@ -1,10 +1,10 @@
 # NOPE Crisis Screen Validator
 
-A [Guardrails AI](https://guardrailsai.com) validator for detecting mental health crises and safety risks in LLM inputs and outputs using [NOPE](https://nope.net).
+A [Guardrails AI](https://guardrailsai.com) validator for detecting mental health crises and safety risks in LLM inputs and outputs using [NOPE](https://nope.net). Backed by NOPE's Edge-classifier `/v1/evaluate` API.
 
-- **Latency:** ~300-500ms (add ~500ms for `on_fail="fix"`)
-- **Cost:** $0.001 per call ($1 free credit for new accounts)
-- **Coverage:** 9 risk types, 222 countries
+- **Latency:** ~200-500ms per call
+- **Cost:** $0.003 per call ($1 free credit for new accounts)
+- **Coverage:** 9 risk types, localized crisis resources
 
 ## Installation
 
@@ -12,11 +12,16 @@ A [Guardrails AI](https://guardrailsai.com) validator for detecting mental healt
 pip install nope-crisis-screen
 ```
 
-Or via Guardrails Hub (after publication):
+Or via Guardrails Hub:
 
 ```bash
 guardrails hub install hub://nope/crisis_screen
 ```
+
+> **Note:** This validator calls a hosted API (NOPE `/v1/evaluate`) and therefore
+> requires a NOPE API key — the same pattern as other API-backed Guardrails
+> validators (e.g. Valid Address → Google Maps, Bespoke MiniCheck → BespokeLabs).
+> The classifier model runs on NOPE's infrastructure, not locally.
 
 ## Requirements
 
@@ -25,14 +30,16 @@ guardrails hub install hub://nope/crisis_screen
 
 ## Safety Design
 
-This validator **fails open** - if the NOPE API is unavailable, validation passes rather than blocking users. This prevents the safety layer from becoming a denial-of-service vector.
+This validator **fails open on transient/server-side problems** — if the NOPE API is briefly unavailable, validation passes rather than blocking users, so the safety layer never becomes a denial-of-service vector. **Developer-side errors fail loud**, because a silently misconfigured safety layer is worse than none.
 
-| Scenario | Behavior | Metadata |
-|----------|----------|----------|
-| Network error | Pass | `{"fail_open": true, "error": "..."}` |
-| API timeout | Pass | `{"fail_open": true, "error": "NOPE API timeout"}` |
-| Rate limited (429) | Pass | `{"fail_open": true}` |
-| Auth error (401/402) | **Raise exception** | Configuration issue |
+| Scenario | Behavior | Rationale |
+|----------|----------|-----------|
+| Network error | Pass (fail open) | Transient |
+| API timeout | Pass (fail open) | Transient |
+| Rate limited (429) | Pass (fail open) | Transient |
+| Server error (5xx) | Pass (fail open) | Transient, server-side |
+| Auth/balance error (401/402) | **Raise `ValueError`** | Bad key or empty balance — fix it |
+| Other client error (400/404/…) | **Raise `ValueError`** | Misconfiguration (e.g. wrong `NOPE_API_URL`) |
 
 ## Quick Start
 
@@ -83,19 +90,21 @@ Also relevant for:
 | `exploitation` | Trafficking, grooming, sextortion | Trafficking indicators |
 | `stalking` | Persistent unwanted contact, surveillance | - |
 
-When risks are detected, the validator returns localized crisis resources (hotlines, chat services) for 222 countries/territories.
+When risks are detected, the validator returns localized crisis resources (hotlines, chat services) for the user's country (set via `country` or per-call `metadata`).
 
 ## Configuration
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `api_key` | `str` | `NOPE_API_KEY` env var | Your NOPE API key |
-| `severity_threshold` | `str` | `"moderate"` | Minimum severity: `low`, `moderate`, `high`, `critical` |
+| `severity_threshold` | `str` | `"moderate"` | Minimum severity: `mild`, `moderate`, `high`, `critical` |
 | `risk_types` | `list[str]` | All 9 types | Which risk types to check |
 | `country` | `str` | `"US"` | ISO country code for localized resources |
 | `include_resources` | `bool` | `True` | Include crisis resources in failure metadata |
-| `include_recommended_reply` | `bool` | `False` | Generate LLM-crafted safe response (adds ~500ms) |
+| `include_recommended_reply` | `bool` | `False` | Attach a deterministic, resource-grounded safe reply as `fix_value` (no extra latency/cost). Auto-enabled by `on_fail="fix"` |
 | `on_fail` | `str \| Callable` | `None` | Guardrails on_fail action |
+
+> The severity scale is `mild → moderate → high → critical` (matching the NOPE API). `"low"` is accepted as a deprecated alias for `"mild"`.
 
 ## Examples
 
@@ -119,13 +128,13 @@ guard.validate("I've been thinking about ending it all")
 # Only check for self-directed harm
 guard = Guard().use(CrisisScreen(
     risk_types=["suicide", "self_harm", "self_neglect"],
-    severity_threshold="low",
+    severity_threshold="mild",
 ))
 ```
 
 ### With Conversation Context
 
-The API uses the last 6 messages for context, improving accuracy:
+Passing recent conversation context improves accuracy:
 
 ```python
 guard.validate(
@@ -182,16 +191,16 @@ All standard Guardrails on_fail actions are supported:
 
 ### Using `on_fail="fix"`
 
-When you use `on_fail="fix"`, the validator automatically enables `include_recommended_reply` and returns an LLM-generated safe response:
+When you use `on_fail="fix"`, the validator returns a **deterministic, supportive safe reply** built from the matched crisis resource (e.g. the local hotline). It is intentionally *not* LLM-generated — a fixed, resource-grounded message has no hallucination risk, adds no latency, and costs nothing extra:
 
 ```python
 guard = Guard().use(CrisisScreen(on_fail="fix"))
 
 result = guard.validate("I've been thinking about ending it all")
-# result.validated_output contains a safe, supportive response with crisis resources
+# result.validated_output contains a safe, supportive response pointing to crisis resources
 ```
 
-**Note:** This adds ~500ms latency for the recommended reply generation.
+If the API returns no resources (e.g. `include_resources=False`), no `fix_value` is produced.
 
 ### Custom Handler Example
 
@@ -221,7 +230,7 @@ guard = Guard().use(CrisisScreen(
 
 | Level | Description | Example |
 |-------|-------------|---------|
-| `low` | Minor distress, no functional impairment | Vague expressions of sadness |
+| `mild` | Minor distress, no functional impairment | Vague expressions of sadness |
 | `moderate` | Clear concern, not immediately dangerous | Passive suicidal ideation |
 | `high` | Serious risk requiring urgent intervention | Active ideation with method |
 | `critical` | Life-threatening, imminent harm | Intent + plan + timeline |

@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check nope_crisis_screen/ tests/
+      - name: Unit tests (mocked)
+        # Live smoke test (tests/test_live_smoke.py) is excluded here: it needs a
+        # real NOPE_API_KEY and bills per call. It runs in the release workflow.
+        run: pytest tests/test_validator.py -v
