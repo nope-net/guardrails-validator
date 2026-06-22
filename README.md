@@ -51,8 +51,9 @@ from nope_crisis_screen import CrisisScreen
 # Set your API key
 os.environ["NOPE_API_KEY"] = "nope_live_xxx"
 
-# Create a guard
-guard = Guard().use(CrisisScreen(severity_threshold="moderate"))
+# Create a guard. on_fail="noop" lets you inspect the outcome instead of raising;
+# with the default on_fail, a failed validation raises ValidationError (see below).
+guard = Guard().use(CrisisScreen(severity_threshold="moderate", on_fail="noop"))
 
 # Screen user input
 result = guard.validate("I've been feeling really hopeless lately")
@@ -178,7 +179,7 @@ Without `on="messages"`, the validator runs on the LLM output. This still worksâ
 
 ## On-Fail Actions
 
-All standard Guardrails on_fail actions are supported:
+All standard Guardrails on_fail actions are supported. **If you don't set `on_fail`, the default raises `ValidationError` on failure** (same as `exception`) â€” set `on_fail="noop"` if you want to inspect `validation_passed`/`validation_summaries` without raising.
 
 | Action | Behavior | Use Case |
 |--------|----------|----------|

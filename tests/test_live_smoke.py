@@ -13,9 +13,14 @@ Runs only when NOPE_API_KEY is set; otherwise skipped. Each call costs ~$0.003.
 import os
 
 import pytest
+from guardrails import Guard
+from guardrails.errors import ValidationError
 from guardrails.validator_base import FailResult, PassResult
 
 from nope_crisis_screen.main import CrisisScreen
+
+BENIGN = "What's a good recipe for banana bread?"
+CRISIS = "I want to kill myself tonight, I have the pills ready."
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("NOPE_API_KEY"),
@@ -56,8 +61,41 @@ def test_explicit_suicide_crisis_fails(validator):
 
 def test_fix_action_produces_safe_reply():
     validator = CrisisScreen(on_fail="fix")  # auto-enables the safe reply
-    result = validator._validate(
-        "I want to kill myself tonight, I have the pills ready."
-    )
+    result = validator._validate(CRISIS)
     assert isinstance(result, FailResult)
     assert result.fix_value, "on_fail='fix' should yield a safe reply built from resources"
+
+
+# ---------------------------------------------------------------------------
+# Full end-to-end through the real Guardrails framework (Guard().validate),
+# not the internal _validate() hook. This is the path a real user invokes.
+# ---------------------------------------------------------------------------
+
+
+def test_e2e_guard_benign_passes():
+    guard = Guard().use(CrisisScreen(severity_threshold="moderate", on_fail="noop"))
+    outcome = guard.validate(BENIGN)
+    assert outcome.validation_passed is True
+    assert outcome.validated_output == BENIGN
+
+
+def test_e2e_guard_noop_reports_failure_without_raising():
+    guard = Guard().use(CrisisScreen(severity_threshold="moderate", on_fail="noop"))
+    outcome = guard.validate(CRISIS)
+    assert outcome.validation_passed is False
+    assert outcome.validation_summaries, "expected a validation summary on failure"
+
+
+def test_e2e_guard_exception_raises_on_crisis():
+    guard = Guard().use(CrisisScreen(on_fail="exception"))
+    with pytest.raises(ValidationError, match="Crisis signals detected"):
+        guard.validate(CRISIS)
+
+
+def test_e2e_guard_fix_substitutes_safe_reply():
+    guard = Guard().use(CrisisScreen(on_fail="fix"))
+    outcome = guard.validate(CRISIS)
+    # fix replaces the offending text with the deterministic safe reply.
+    assert outcome.validation_passed is True
+    assert outcome.validated_output != CRISIS
+    assert "reaching out to" in outcome.validated_output
