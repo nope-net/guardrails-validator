@@ -44,8 +44,10 @@ jobs:
           pip install build
           python -m build
       - name: Verify tag matches package version
+        # Read the version from pyproject.toml WITHOUT importing the package — the
+        # package import pulls runtime deps (requests/guardrails) not installed here.
         run: |
-          PKG_VERSION="v$(python -c 'import nope_crisis_screen; print(nope_crisis_screen.__version__)')"
+          PKG_VERSION="v$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
           GIT_TAG="${GITHUB_REF_NAME}"
           echo "package=$PKG_VERSION tag=$GIT_TAG"
           test "$PKG_VERSION" = "$GIT_TAG" || { echo "::error::tag $GIT_TAG != package $PKG_VERSION"; exit 1; }
