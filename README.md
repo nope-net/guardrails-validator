@@ -68,14 +68,11 @@ else:
         print(f"Risks: {summary.metadata.get('risks')}")
 ```
 
-## Regulatory Compliance
+## Regulatory Context
 
-**California SB 243** (effective Jan 2026) requires AI chatbots to detect and respond to mental health crises. This validator helps you comply.
+Several jurisdictions are introducing requirements around AI chatbots and mental-health crises. This validator provides crisis detection and resource surfacing — capabilities relevant to those obligations — but **using it does not, by itself, make you compliant with any law**. You are responsible for determining which laws apply to your product and whether your overall crisis-response protocols meet them; consult qualified legal counsel.
 
-Also relevant for:
-- **NY Article 47** - Mental health parity in digital services
-- **UK Online Safety Act** - Duty of care for user safety
-- **EU AI Act** - High-risk AI system requirements
+For a neutral, sourced overview of the regulatory landscape, see [nope.net/regs](https://nope.net/regs).
 
 ## Risk Types
 

@@ -2,7 +2,7 @@
 NOPE Crisis Screen Validator for Guardrails AI
 
 Detects mental health crises and safety risks in text using NOPE's
-/v1/evaluate API (Edge-backed). Covers 9 risk types based on clinical
+/v1/evaluate API. Covers 9 risk types based on clinical
 frameworks (C-SSRS for suicide, HCR-20 for violence, DASH for abuse).
 
 Risk types: suicide, self_harm, self_neglect, violence, abuse,

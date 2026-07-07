@@ -1,6 +1,6 @@
 [project]
 name = "nope-crisis-screen"
-version = "0.2.0"
+version = "0.2.1"
 description = "Guardrails AI validator for mental health crisis detection using NOPE"
 readme = "README.md"
 license = { text = "Apache-2.0" }
